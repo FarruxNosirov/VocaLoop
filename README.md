@@ -1,50 +1,57 @@
-# Welcome to your Expo app 👋
+# VocaLoop — Boshlash yo'riqnomasi
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Loyihani ishga tushirish
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 1-qadam: Expo o'rnatish
 ```bash
-npm run reset-project
+npm install -g expo-cli
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2-qadam: Loyihani yaratish
+```bash
+npx create-expo-app VocaLoop
+cd VocaLoop
+```
 
-## Learn more
+### 3-qadam: Kerakli kutubxonalarni o'rnatish
+```bash
+npx expo install expo-speech
+npx expo install @react-native-async-storage/async-storage
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+### 4-qadam: App.js ni almashtiris
+App.js faylini yuklangan fayl bilan almashtiring.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 5-qadam: Google API kalitini olish
+1. https://console.cloud.google.com saytiga kiring
+2. Yangi loyiha yarating: "VocaLoop"
+3. "Cloud Translation API" ni yoqing
+4. "Credentials" bo'limidan API kalit oling
+5. App.js dagi `YOUR_GOOGLE_API_KEY` o'rniga o'z kalitingizni kiriting
 
-## Join the community
+### 6-qadam: Ilovani ishga tushirish
+```bash
+npx expo start
+```
+Telefonda "Expo Go" ilovasini o'rnating va QR kodni skanlang.
 
-Join our community of developers creating universal apps.
+---
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Ilova imkoniyatlari (MVP)
+
+- Inglizcha so'z kiriting → O'zbekcha tarjima
+- Tarjima qilingan so'z avtomatik bugungi ro'yxatga qo'shiladi
+- Har bir so'z yonidagi ▶ tugmasi inglizcha + o'zbekcha o'qib beradi
+- "Barchasini o'qi" tugmasi barcha bugungi so'zlarni ketma-ket o'qib beradi
+- So'zlar telefon xotirasida saqlanadi (offline ishlaydi)
+- Har kun yangi ro'yxat boshlanadi
+
+---
+
+## Keyingi bosqichlar (V2)
+
+- [ ] Firebase bilan foydalanuvchi hisobi
+- [ ] Statistika: nechta so'z o'rganildi
+- [ ] Spaced repetition: eski so'zlarni qaytarish
+- [ ] So'z toifalari (ish, sayohat, texnologiya...)
+- [ ] Freemium: kuniga 10 so'z bepul, undan ko'pi premium

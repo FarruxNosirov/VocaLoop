@@ -1,35 +1,108 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs } from "expo-router";
+import React from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { HapticTab } from "@/components/haptic-tab";
+import { useTheme } from "@/context/theme-context";
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { colors } = useTheme();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
-      }}>
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          height: Platform.OS === "ios" ? 88 : 64,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "600",
+          marginTop: 2,
+        },
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: "Tarjimon",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="📖" focused={focused} colors={colors} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="kitoblar"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: "Kitoblar",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="📚" focused={focused} colors={colors} />
+          ),
         }}
       />
+      <Tabs.Screen
+        name="oyinlar"
+        options={{
+          title: "O'yinlar",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="🎮" focused={focused} colors={colors} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profil"
+        options={{
+          title: "Profil",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="👤" focused={focused} colors={colors} />
+          ),
+        }}
+      />
+      <Tabs.Screen name="tarix" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
+
+function TabIcon({
+  emoji,
+  focused,
+  colors,
+}: {
+  emoji: string;
+  focused: boolean;
+  colors: ReturnType<typeof useTheme>["colors"];
+}) {
+  return (
+    <View
+      style={[
+        styles.iconBox,
+        focused && { backgroundColor: colors.primaryLight },
+      ]}
+    >
+      <Text style={styles.iconEmoji}>{emoji}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconBox: {
+    width: 40,
+    height: 32,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconEmoji: { fontSize: 20 },
+});

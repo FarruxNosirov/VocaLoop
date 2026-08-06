@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "expo",
+      "runtimeExecutable": "/Users/user/.nvm/versions/node/v20.19.4/bin/npx",
+      "runtimeArgs": ["expo", "start", "--web", "--clear"],
+      "port": 8081,
+      "autoPort": true,
+      "env": {
+        "PATH": "/Users/user/.nvm/versions/node/v20.19.4/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      }
+    }
+  ]
+}

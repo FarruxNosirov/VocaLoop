@@ -1,98 +1,216 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Audio } from "expo-av";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { LanguagePicker } from "@/components/language-picker";
+import { TranslateInput } from "@/components/translate-input";
+import { WordList } from "@/components/word-list";
+import { useTheme } from "@/context/theme-context";
+import { Language, LANGUAGES } from "@/constants/languages";
+import { loadTodayWords, saveWords } from "@/services/storage";
+import { translateWord } from "@/services/translate";
+import { speakWithGoogle } from "@/services/tts";
+import { Word } from "@/types";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const { colors } = useTheme();
+  const [translatedText, setTranslatedText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [todayWords, setTodayWords] = useState<Word[]>([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const isPlayingRef = useRef(false);
+  const [fromLang, setFromLang] = useState<Language>(LANGUAGES.find((l) => l.code === "en")!);
+  const [toLang, setToLang] = useState<Language>(LANGUAGES.find((l) => l.code === "uz")!);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    loadTodayWords()
+      .then(setTodayWords)
+      .catch((e) => console.error("Yuklashda xato:", e));
+  }, []);
+
+  async function handleTranslate(inputText: string) {
+    setIsLoading(true);
+    setTranslatedText("");
+    try {
+      const result = await translateWord(inputText, fromLang.code, toLang.code);
+      setTranslatedText(result);
+
+      const newWord: Word = {
+        id: Date.now().toString(),
+        original: inputText,
+        translated: result,
+        time: new Date().toLocaleTimeString("uz-UZ", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      };
+
+      setTodayWords((prev) => {
+        const updated = [newWord, ...prev];
+        saveWords(updated).catch((e) => console.error("Saqlashda xato:", e));
+        return updated;
+      });
+    } catch {
+      Alert.alert(
+        "Xato",
+        "Tarjima qilishda muammo yuz berdi. API kalitini tekshiring.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const currentSound = useRef<Audio.Sound | null>(null);
+
+  async function speakWord(word: Word) {
+    try {
+      await stopCurrentSound();
+      await speakWithGoogle({ text: word.original, language: fromLang.code, rate: 0.8 });
+      await speakWithGoogle({ text: word.translated, language: toLang.code, rate: 0.8 });
+    } catch (e) {
+      console.error("TTS xatosi:", e);
+    }
+  }
+
+  async function speakAllWords() {
+    if (todayWords.length === 0) {
+      Alert.alert("So'z yo'q", "Bugun hali hech qanday so'z tarjima qilmadingiz.");
+      return;
+    }
+    isPlayingRef.current = true;
+    setIsPlaying(true);
+
+    for (const word of todayWords) {
+      if (!isPlayingRef.current) break;
+      try {
+        await speakWithGoogle({ text: word.original, language: fromLang.code, rate: 0.8 });
+        if (!isPlayingRef.current) break;
+        await speakWithGoogle({ text: word.translated, language: toLang.code, rate: 0.8 });
+      } catch (e) {
+        console.error("TTS xatosi:", e);
+      }
+      if (!isPlayingRef.current) break;
+      await new Promise<void>((r) => setTimeout(r, 500));
+    }
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+  }
+
+  async function stopCurrentSound() {
+    try {
+      if (currentSound.current) {
+        await currentSound.current.stopAsync();
+        await currentSound.current.unloadAsync();
+        currentSound.current = null;
+      }
+    } catch {}
+  }
+
+  function stopSpeaking() {
+    isPlayingRef.current = false;
+    stopCurrentSound();
+    setIsPlaying(false);
+  }
+
+  async function deleteWord(id: string) {
+    try {
+      setTodayWords((prev) => {
+        const updated = prev.filter((w) => w.id !== id);
+        saveWords(updated).catch((e) => console.error("O'chirishda xato:", e));
+        return updated;
+      });
+    } catch (e) {
+      console.error("O'chirishda xato:", e);
+    }
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.logo, { color: colors.primary }]}>VocaLoop</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>So'z boyligingizni oshiring</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[styles.historyBtn, { backgroundColor: colors.primaryLight }]}
+            onPress={() => router.push("/(tabs)/tarix")}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.historyBtnText, { color: colors.primary }]}>📅 Tarix</Text>
+          </TouchableOpacity>
+          {todayWords.length > 0 && (
+            <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+              <Text style={styles.badgeText}>{todayWords.length}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.langRow}>
+        <LanguagePicker selected={fromLang} onSelect={setFromLang} label="Dan" />
+        <TouchableOpacity
+          style={[styles.swapBtn, { backgroundColor: colors.primaryLight }]}
+          onPress={() => { setFromLang(toLang); setToLang(fromLang); }}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.swapText, { color: colors.primary }]}>⇄</Text>
+        </TouchableOpacity>
+        <LanguagePicker selected={toLang} onSelect={setToLang} label="Ga" />
+      </View>
+
+      <TranslateInput
+        onTranslate={handleTranslate}
+        translatedText={translatedText}
+        isLoading={isLoading}
+      />
+
+      <WordList
+        words={todayWords}
+        isPlaying={isPlaying}
+        onSpeakAll={speakAllWords}
+        onStop={stopSpeaking}
+        onSpeak={speakWord}
+        onDelete={deleteWord}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { flex: 1 },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  historyBtn: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  historyBtnText: { fontSize: 13, fontWeight: "600" },
+  logo: { fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  badge: {
+    borderRadius: 14, minWidth: 42, height: 34,
+    alignItems: "center", justifyContent: "center", paddingHorizontal: 12,
   },
+  badgeText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  langRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, marginBottom: 10, gap: 8,
+  },
+  swapBtn: {
+    width: 36, height: 36, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  swapText: { fontSize: 18, fontWeight: "700" },
 });
