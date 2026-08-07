@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Simulator: localhost, Haqiqiy qurilma: Mac'ning lokal IP'si
-const BASE_URL = "http://192.168.17.202:5000";
+const BASE_URL = "https://vocaloop-production.up.railway.app";
 
 const TOKEN_KEY = "auth_token_v1";
 
