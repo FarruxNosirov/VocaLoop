@@ -1,4 +1,3 @@
-import { Audio } from "expo-av";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -7,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LanguagePicker } from "@/components/language-picker";
 import { TranslateInput } from "@/components/translate-input";
 import { WordList } from "@/components/word-list";
-import { useTheme } from "@/context/theme-context";
 import { Language, LANGUAGES } from "@/constants/languages";
+import { useTheme } from "@/context/theme-context";
 import { loadTodayWords, saveWords } from "@/services/storage";
 import { translateWord } from "@/services/translate";
 import { speakWithGoogle } from "@/services/tts";
@@ -22,8 +21,12 @@ export default function HomeScreen() {
   const [todayWords, setTodayWords] = useState<Word[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const isPlayingRef = useRef(false);
-  const [fromLang, setFromLang] = useState<Language>(LANGUAGES.find((l) => l.code === "en")!);
-  const [toLang, setToLang] = useState<Language>(LANGUAGES.find((l) => l.code === "uz")!);
+  const [fromLang, setFromLang] = useState<Language>(
+    LANGUAGES.find((l) => l.code === "en")!,
+  );
+  const [toLang, setToLang] = useState<Language>(
+    LANGUAGES.find((l) => l.code === "uz")!,
+  );
 
   useEffect(() => {
     loadTodayWords()
@@ -46,6 +49,8 @@ export default function HomeScreen() {
           hour: "2-digit",
           minute: "2-digit",
         }),
+        fromLangCode: fromLang.code,
+        toLangCode: toLang.code,
       };
 
       setTodayWords((prev) => {
@@ -63,13 +68,21 @@ export default function HomeScreen() {
     }
   }
 
-  const currentSound = useRef<Audio.Sound | null>(null);
-
   async function speakWord(word: Word) {
     try {
-      await stopCurrentSound();
-      await speakWithGoogle({ text: word.original, language: fromLang.code, rate: 0.8 });
-      await speakWithGoogle({ text: word.translated, language: toLang.code, rate: 0.8 });
+      // so'z saqlangan paytdagi til kodlarini ishlatamiz (swap'dan keyin ham to'g'ri)
+      const srcLang = word.fromLangCode ?? "en";
+      const dstLang = word.toLangCode ?? "uz";
+      await speakWithGoogle({
+        text: word.original,
+        language: srcLang,
+        rate: 0.8,
+      });
+      await speakWithGoogle({
+        text: word.translated,
+        language: dstLang,
+        rate: 0.8,
+      });
     } catch (e) {
       console.error("TTS xatosi:", e);
     }
@@ -77,7 +90,10 @@ export default function HomeScreen() {
 
   async function speakAllWords() {
     if (todayWords.length === 0) {
-      Alert.alert("So'z yo'q", "Bugun hali hech qanday so'z tarjima qilmadingiz.");
+      Alert.alert(
+        "So'z yo'q",
+        "Bugun hali hech qanday so'z tarjima qilmadingiz.",
+      );
       return;
     }
     isPlayingRef.current = true;
@@ -86,9 +102,19 @@ export default function HomeScreen() {
     for (const word of todayWords) {
       if (!isPlayingRef.current) break;
       try {
-        await speakWithGoogle({ text: word.original, language: fromLang.code, rate: 0.8 });
+        const srcLang = word.fromLangCode ?? "en";
+        const dstLang = word.toLangCode ?? "uz";
+        await speakWithGoogle({
+          text: word.original,
+          language: srcLang,
+          rate: 0.8,
+        });
         if (!isPlayingRef.current) break;
-        await speakWithGoogle({ text: word.translated, language: toLang.code, rate: 0.8 });
+        await speakWithGoogle({
+          text: word.translated,
+          language: dstLang,
+          rate: 0.8,
+        });
       } catch (e) {
         console.error("TTS xatosi:", e);
       }
@@ -99,19 +125,8 @@ export default function HomeScreen() {
     setIsPlaying(false);
   }
 
-  async function stopCurrentSound() {
-    try {
-      if (currentSound.current) {
-        await currentSound.current.stopAsync();
-        await currentSound.current.unloadAsync();
-        currentSound.current = null;
-      }
-    } catch {}
-  }
-
   function stopSpeaking() {
     isPlayingRef.current = false;
-    stopCurrentSound();
     setIsPlaying(false);
   }
 
@@ -128,19 +143,29 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["top"]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       <View style={styles.header}>
         <View>
           <Text style={[styles.logo, { color: colors.primary }]}>VocaLoop</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>So'z boyligingizni oshiring</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+            So&apos;z boyligingizni oshiring
+          </Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            style={[styles.historyBtn, { backgroundColor: colors.primaryLight }]}
+            style={[
+              styles.historyBtn,
+              { backgroundColor: colors.primaryLight },
+            ]}
             onPress={() => router.push("/(tabs)/tarix")}
             activeOpacity={0.7}
           >
-            <Text style={[styles.historyBtnText, { color: colors.primary }]}>📅 Tarix</Text>
+            <Text style={[styles.historyBtnText, { color: colors.primary }]}>
+              📅 Tarix
+            </Text>
           </TouchableOpacity>
           {todayWords.length > 0 && (
             <View style={[styles.badge, { backgroundColor: colors.primary }]}>
@@ -151,10 +176,17 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.langRow}>
-        <LanguagePicker selected={fromLang} onSelect={setFromLang} label="Dan" />
+        <LanguagePicker
+          selected={fromLang}
+          onSelect={setFromLang}
+          label="Dan"
+        />
         <TouchableOpacity
           style={[styles.swapBtn, { backgroundColor: colors.primaryLight }]}
-          onPress={() => { setFromLang(toLang); setToLang(fromLang); }}
+          onPress={() => {
+            setFromLang(toLang);
+            setToLang(fromLang);
+          }}
           activeOpacity={0.7}
         >
           <Text style={[styles.swapText, { color: colors.primary }]}>⇄</Text>
@@ -200,17 +232,27 @@ const styles = StyleSheet.create({
   logo: { fontSize: 28, fontWeight: "800", letterSpacing: -0.5 },
   subtitle: { fontSize: 13, marginTop: 2 },
   badge: {
-    borderRadius: 14, minWidth: 42, height: 34,
-    alignItems: "center", justifyContent: "center", paddingHorizontal: 12,
+    borderRadius: 14,
+    minWidth: 42,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
   badgeText: { color: "#fff", fontSize: 16, fontWeight: "800" },
   langRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, marginBottom: 10, gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    gap: 8,
   },
   swapBtn: {
-    width: 36, height: 36, borderRadius: 12,
-    alignItems: "center", justifyContent: "center",
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   swapText: { fontSize: 18, fontWeight: "700" },
 });

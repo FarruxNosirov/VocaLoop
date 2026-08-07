@@ -1,19 +1,24 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ThemeColors } from "@/constants/app-colors";
 import { useAuth } from "@/context/auth-context";
 import { ThemeMode, useTheme } from "@/context/theme-context";
-import { ThemeColors } from "@/constants/app-colors";
 import {
   getActiveDaysCount,
   getStreak,
@@ -26,257 +31,389 @@ interface Stats {
   streak: number;
 }
 
+// ─── Edit Profile Modal ───────────────────────────────────────────────────────
+
+function EditProfileModal({
+  visible,
+  currentName,
+  currentPhone,
+  colors,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  currentName: string;
+  currentPhone: string;
+  colors: ThemeColors;
+  onClose: () => void;
+  onSave: (name: string, phone: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(currentName);
+  const [phone, setPhone] = useState(currentPhone);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setName(currentName);
+      setPhone(currentPhone);
+    }
+  }, [visible, currentName, currentPhone]);
+
+  async function handleSave() {
+    if (!name.trim()) {
+      Alert.alert("Xato", "Ism bo'sh bo'lishi mumkin emas");
+      return;
+    }
+    if (phone.trim().length < 4) {
+      Alert.alert("Xato", "Telefon raqamni kiriting");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSave(name.trim(), phone.trim());
+      onClose();
+    } catch (e: any) {
+      Alert.alert("Xato", e?.message ?? "Saqlashda xato yuz berdi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity style={ms.overlay} activeOpacity={1} onPress={onClose} />
+        <View style={[ms.sheet, { backgroundColor: colors.surface }]}>
+          <View style={[ms.handle, { backgroundColor: colors.border }]} />
+
+          {/* Header */}
+          <View style={ms.header}>
+            <Text style={[ms.title, { color: colors.textPrimary }]}>Profilni tahrirlash</Text>
+            <TouchableOpacity
+              style={[ms.closeBtn, { backgroundColor: colors.border }]}
+              onPress={onClose}
+            >
+              <Text style={[ms.closeTxt, { color: colors.textMuted }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Avatar preview */}
+          <View style={[ms.avatarPreview, { backgroundColor: colors.primary }]}>
+            <Text style={ms.avatarText}>
+              {name.trim()
+                ? name.trim().split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+                : "?"}
+            </Text>
+          </View>
+
+          {/* Name */}
+          <Text style={[ms.label, { color: colors.textMuted }]}>Ism Familiya</Text>
+          <TextInput
+            style={[ms.input, { color: colors.textPrimary, backgroundColor: colors.background, borderColor: colors.border }]}
+            value={name}
+            onChangeText={setName}
+            placeholder="Ism Familiya"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="words"
+            returnKeyType="next"
+          />
+
+          {/* Phone */}
+          <Text style={[ms.label, { color: colors.textMuted, marginTop: 14 }]}>Telefon raqam</Text>
+          <TextInput
+            style={[ms.input, { color: colors.textPrimary, backgroundColor: colors.background, borderColor: colors.border }]}
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+998 90 123 45 67"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="phone-pad"
+            returnKeyType="done"
+          />
+
+          {/* Save */}
+          <TouchableOpacity
+            style={[ms.saveBtn, { backgroundColor: colors.primary }, loading && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={ms.saveTxt}>Saqlash</Text>
+            }
+          </TouchableOpacity>
+
+          <View style={{ height: 28 }} />
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Theme Modal ──────────────────────────────────────────────────────────────
+
+function ThemeModal({
+  visible, currentTheme, colors, onClose, onSelect,
+}: {
+  visible: boolean;
+  currentTheme: ThemeMode;
+  colors: ThemeColors;
+  onClose: () => void;
+  onSelect: (mode: ThemeMode) => void;
+}) {
+  const options: { key: ThemeMode; icon: string; label: string }[] = [
+    { key: "light", icon: "☀️", label: "Light mode" },
+    { key: "dark", icon: "🌙", label: "Dark mode" },
+    { key: "system", icon: "📱", label: "System" },
+  ];
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <TouchableOpacity style={ms.overlay} activeOpacity={1} onPress={onClose} />
+      <View style={[ms.sheet, { backgroundColor: colors.surface }]}>
+        <View style={[ms.handle, { backgroundColor: colors.border }]} />
+        <View style={ms.header}>
+          <Text style={[ms.title, { color: colors.textPrimary }]}>Theme tanlang</Text>
+          <TouchableOpacity style={[ms.closeBtn, { backgroundColor: colors.border }]} onPress={onClose}>
+            <Text style={[ms.closeTxt, { color: colors.textMuted }]}>✕</Text>
+          </TouchableOpacity>
+        </View>
+        {options.map((opt) => {
+          const sel = currentTheme === opt.key;
+          return (
+            <TouchableOpacity
+              key={opt.key}
+              style={[ms.themeRow, { borderColor: sel ? colors.primary : colors.border }, sel && { borderWidth: 2 }]}
+              activeOpacity={0.7}
+              onPress={() => onSelect(opt.key)}
+            >
+              <Text style={{ fontSize: 26 }}>{opt.icon}</Text>
+              <Text style={[{ flex: 1, fontSize: 16, fontWeight: "600" }, { color: colors.textPrimary }]}>
+                {opt.label}
+              </Text>
+              {sel && (
+                <View style={[ms.check, { backgroundColor: colors.primary }]}>
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>✓</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+        <View style={{ height: 28 }} />
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ message, colors }: { message: string; colors: ThemeColors }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(opacity, { toValue: 0, duration: 350, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[ms.toast, { backgroundColor: colors.surface, opacity }]}>
+      <Text style={{ fontSize: 16 }}>✅</Text>
+      <Text style={[ms.toastTxt, { color: colors.textPrimary }]}>{message}</Text>
+    </Animated.View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function ProfilScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateProfile } = useAuth();
   const { colors, theme, setTheme } = useTheme();
   const router = useRouter();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [stats, setStats] = useState<Stats>({ totalWords: 0, activeDays: 0, streak: 0 });
+  const [editSheet, setEditSheet] = useState(false);
   const [themeSheet, setThemeSheet] = useState(false);
+  const [toastKey, setToastKey] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([getTotalWordCount(), getActiveDaysCount(), getStreak()])
-      .then(([totalWords, activeDays, streak]) =>
-        setStats({ totalWords, activeDays, streak })
-      )
+      .then(([totalWords, activeDays, streak]) => setStats({ totalWords, activeDays, streak }))
       .catch(console.error);
   }, []);
+
+  function showToast() {
+    setToastKey(Date.now());
+    setTimeout(() => setToastKey(null), 2500);
+  }
 
   function handleLogout() {
     Alert.alert("Chiqish", "Hisobdan chiqmoqchimisiz?", [
       { text: "Bekor", style: "cancel" },
       {
-        text: "Chiqish",
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/(auth)/welcome");
-        },
+        text: "Chiqish", style: "destructive",
+        onPress: async () => { await logout(); router.replace("/(auth)/welcome"); },
       },
     ]);
   }
+
+  const handleSaveProfile = useCallback(async (name: string, phone: string) => {
+    await updateProfile({ name, email: phone });
+    showToast();
+  }, [updateProfile]);
 
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?";
 
-  const themeOptions: { key: ThemeMode; icon: string; label: string }[] = [
-    { key: "light", icon: "☀️", label: "Light mode" },
-    { key: "dark", icon: "🌙", label: "Dark mode" },
-    { key: "system", icon: "📱", label: "System" },
+  const themeOptions: { key: ThemeMode; label: string }[] = [
+    { key: "light", label: "Light mode" },
+    { key: "dark", label: "Dark mode" },
+    { key: "system", label: "System" },
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={s.container} edges={["top"]}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profil</Text>
+        <View style={s.header}>
+          <Text style={s.headerTitle}>Profil</Text>
         </View>
 
         {/* User card */}
-        <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        <View style={s.userCard}>
+          <View style={s.avatar}>
+            <Text style={s.avatarText}>{initials}</Text>
           </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name ?? "—"}</Text>
-            <Text style={styles.userSub}>{user?.phone ?? "So'zlarni sinxronlash uchun kiring"}</Text>
+          <View style={s.userInfo}>
+            <Text style={s.userName}>{user?.name ?? "—"}</Text>
+            <Text style={s.userSub}>{user?.email ?? "So'zlarni sinxronlash uchun kiring"}</Text>
           </View>
-          <Text style={styles.chevronIcon}>›</Text>
         </View>
 
         {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.totalWords}</Text>
-            <Text style={styles.statLabel}>So'zlar</Text>
+        <View style={s.statsRow}>
+          <View style={s.statCard}>
+            <Text style={s.statValue}>{stats.totalWords}</Text>
+            <Text style={s.statLabel}>So'zlar</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{stats.activeDays}</Text>
-            <Text style={styles.statLabel}>Kunlar</Text>
+          <View style={s.statCard}>
+            <Text style={s.statValue}>{stats.activeDays}</Text>
+            <Text style={s.statLabel}>Kunlar</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: colors.warning }]}>
-              {stats.streak}
-            </Text>
-            <Text style={styles.statLabel}>🔥 Streak</Text>
+          <View style={s.statCard}>
+            <Text style={[s.statValue, { color: colors.warning }]}>{stats.streak}</Text>
+            <Text style={s.statLabel}>🔥 Streak</Text>
           </View>
         </View>
 
-        {/* Streak banner */}
         {stats.streak > 0 && (
-          <View style={[styles.streakBanner, { backgroundColor: colors.warning }]}>
-            <Text style={styles.streakEmoji}>🔥</Text>
+          <View style={[s.streakBanner, { backgroundColor: colors.warning }]}>
+            <Text style={{ fontSize: 28 }}>🔥</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.streakTitle}>{stats.streak} kunlik streak!</Text>
-              <Text style={styles.streakSub}>Har kuni o'qishda davom eting</Text>
+              <Text style={s.streakTitle}>{stats.streak} kunlik streak!</Text>
+              <Text style={s.streakSub}>Har kuni o'qishda davom eting</Text>
             </View>
           </View>
         )}
 
-        {/* Account section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hisob</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
-              icon="👤"
-              iconBg={colors.primaryLight}
-              label="Profilni tahrirlash"
-              onPress={() => {}}
-              colors={colors}
-            />
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <MenuItem
-              icon="✉️"
-              iconBg={colors.successLight}
-              label="Email o'zgartirish"
-              onPress={() => {}}
-              colors={colors}
-            />
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <MenuItem
-              icon="🚪"
-              iconBg={colors.dangerLight}
-              label="Chiqish"
-              onPress={handleLogout}
-              danger
-              colors={colors}
-            />
+        {/* Hisob */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Hisob</Text>
+          <View style={s.menuCard}>
+            <MenuItem icon="👤" iconBg={colors.primaryLight} label="Profilni tahrirlash"
+              value={user?.name ?? undefined} onPress={() => setEditSheet(true)} colors={colors} />
+            <Divider color={colors.border} />
+            <MenuItem icon="🚪" iconBg={colors.dangerLight} label="Chiqish"
+              onPress={handleLogout} danger colors={colors} />
           </View>
         </View>
 
-        {/* Preferences section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sozlamalar</Text>
-          <View style={styles.menuCard}>
-            <MenuItem
-              icon="🌙"
-              iconBg={colors.primaryLight}
-              label="Design theme"
+        {/* Sozlamalar */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Sozlamalar</Text>
+          <View style={s.menuCard}>
+            <MenuItem icon="🌙" iconBg={colors.primaryLight} label="Design theme"
               value={themeOptions.find((o) => o.key === theme)?.label}
-              onPress={() => setThemeSheet(true)}
-              colors={colors}
-            />
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            <MenuItem
-              icon="🔔"
-              iconBg={colors.warningLight}
-              label="Daily Reminder"
-              onPress={() => {}}
-              colors={colors}
-            />
+              onPress={() => setThemeSheet(true)} colors={colors} />
+            <Divider color={colors.border} />
+            <MenuItem icon="🔔" iconBg={colors.warningLight} label="Daily Reminder"
+              onPress={() => Alert.alert("Tez kunda", "Bu funksiya keyingi versiyada qo'shiladi")}
+              colors={colors} />
           </View>
         </View>
 
-        <Text style={styles.version}>VocaLoop v1.0</Text>
+        <Text style={s.version}>VocaLoop v1.0</Text>
       </ScrollView>
 
-      {/* Theme picker bottom sheet */}
-      <Modal
-        visible={themeSheet}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setThemeSheet(false)}
-      >
-        <TouchableOpacity
-          style={styles.sheetOverlay}
-          activeOpacity={1}
-          onPress={() => setThemeSheet(false)}
-        />
-        <View style={[styles.sheet, { backgroundColor: colors.surface }]}>
-          <View style={[styles.sheetHandle, { backgroundColor: colors.border }]} />
-          <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>
-              Choose theme
-            </Text>
-            <TouchableOpacity onPress={() => setThemeSheet(false)}>
-              <View style={[styles.closeBtn, { backgroundColor: colors.border }]}>
-                <Text style={[styles.closeBtnText, { color: colors.textMuted }]}>✕</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+      <EditProfileModal
+        visible={editSheet}
+        currentName={user?.name ?? ""}
+        currentPhone={user?.email ?? ""}
+        colors={colors}
+        onClose={() => setEditSheet(false)}
+        onSave={handleSaveProfile}
+      />
 
-          {themeOptions.map((opt) => {
-            const isSelected = theme === opt.key;
-            return (
-              <TouchableOpacity
-                key={opt.key}
-                style={[
-                  styles.themeOption,
-                  { borderColor: isSelected ? colors.primary : colors.border },
-                  isSelected && { borderWidth: 2 },
-                ]}
-                activeOpacity={0.7}
-                onPress={() => {
-                  setTheme(opt.key);
-                  setThemeSheet(false);
-                }}
-              >
-                <Text style={styles.themeOptionIcon}>{opt.icon}</Text>
-                <Text style={[styles.themeOptionLabel, { color: colors.textPrimary }]}>
-                  {opt.label}
-                </Text>
-                {isSelected && (
-                  <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.checkMark}>✓</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-          <View style={{ height: 32 }} />
-        </View>
-      </Modal>
+      <ThemeModal
+        visible={themeSheet}
+        currentTheme={theme}
+        colors={colors}
+        onClose={() => setThemeSheet(false)}
+        onSelect={(mode) => { setTheme(mode); setThemeSheet(false); }}
+      />
+
+      {toastKey !== null && (
+        <Toast key={toastKey} message="Profil muvaffaqiyatli yangilandi" colors={colors} />
+      )}
     </SafeAreaView>
   );
 }
 
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+function Divider({ color }: { color: string }) {
+  return <View style={{ height: 1, backgroundColor: color, marginLeft: 66 }} />;
+}
+
 function MenuItem({
-  icon,
-  iconBg,
-  label,
-  value,
-  onPress,
-  danger,
-  colors,
+  icon, iconBg, label, value, onPress, danger, colors,
 }: {
-  icon: string;
-  iconBg: string;
-  label: string;
-  value?: string;
-  onPress: () => void;
-  danger?: boolean;
-  colors: ThemeColors;
+  icon: string; iconBg: string; label: string; value?: string;
+  onPress: () => void; danger?: boolean; colors: ThemeColors;
 }) {
   return (
     <TouchableOpacity
       style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 }}
-      onPress={onPress}
-      activeOpacity={0.7}
+      onPress={onPress} activeOpacity={0.7}
     >
-      <View style={[{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" }, { backgroundColor: iconBg }]}>
+      <View style={{ width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: iconBg }}>
         <Text style={{ fontSize: 18 }}>{icon}</Text>
       </View>
-      <Text style={[{ flex: 1, fontSize: 15, fontWeight: "600" }, { color: danger ? colors.danger : colors.textPrimary }]}>
+      <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: danger ? colors.danger : colors.textPrimary }}>
         {label}
       </Text>
       {value && (
-        <Text style={{ fontSize: 13, color: colors.textMuted, marginRight: 4 }}>{value}</Text>
+        <Text style={{ fontSize: 12, color: colors.textMuted, marginRight: 4, maxWidth: 130 }} numberOfLines={1}>
+          {value}
+        </Text>
       )}
       <Text style={{ fontSize: 20, color: colors.textMuted }}>›</Text>
     </TouchableOpacity>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 function makeStyles(colors: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
-    headerTitle: {
-      fontSize: 28, fontWeight: "800", color: colors.primary, letterSpacing: -0.5,
-    },
+    headerTitle: { fontSize: 28, fontWeight: "800", color: colors.primary, letterSpacing: -0.5 },
+
     userCard: {
       flexDirection: "row", alignItems: "center", gap: 14,
       backgroundColor: colors.surface, marginHorizontal: 16,
@@ -284,14 +421,12 @@ function makeStyles(colors: ThemeColors) {
     },
     avatar: {
       width: 52, height: 52, borderRadius: 16,
-      backgroundColor: colors.primary,
-      alignItems: "center", justifyContent: "center",
+      backgroundColor: colors.primary, alignItems: "center", justifyContent: "center",
     },
     avatarText: { fontSize: 18, fontWeight: "800", color: "#fff" },
-    userInfo: { flex: 1, gap: 2 },
+    userInfo: { flex: 1, gap: 3 },
     userName: { fontSize: 17, fontWeight: "700", color: colors.textPrimary },
     userSub: { fontSize: 12, color: colors.textMuted },
-    chevronIcon: { fontSize: 22, color: colors.textMuted },
 
     statsRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 12, gap: 10 },
     statCard: {
@@ -305,69 +440,56 @@ function makeStyles(colors: ThemeColors) {
       flexDirection: "row", alignItems: "center", gap: 14,
       marginHorizontal: 16, marginTop: 12, borderRadius: 16, padding: 14,
     },
-    streakEmoji: { fontSize: 28 },
     streakTitle: { fontSize: 14, fontWeight: "800", color: "#fff" },
     streakSub: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 1 },
 
     section: { marginHorizontal: 16, marginTop: 22 },
     sectionTitle: {
       fontSize: 11, fontWeight: "700", color: colors.textMuted,
-      textTransform: "uppercase", letterSpacing: 0.8,
-      marginBottom: 8, marginLeft: 4,
+      textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8, marginLeft: 4,
     },
-    menuCard: {
-      backgroundColor: colors.surface, borderRadius: 16, overflow: "hidden",
-    },
-    divider: { height: 1, marginLeft: 66 },
+    menuCard: { backgroundColor: colors.surface, borderRadius: 16, overflow: "hidden" },
 
-    version: {
-      textAlign: "center", fontSize: 12,
-      color: colors.textMuted, paddingVertical: 32,
-    },
-
-    // Bottom sheet
-    sheetOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.4)",
-    },
-    sheet: {
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingHorizontal: 16,
-      paddingTop: 12,
-    },
-    sheetHandle: {
-      width: 36, height: 4, borderRadius: 2,
-      alignSelf: "center", marginBottom: 16,
-    },
-    sheetHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 20,
-    },
-    sheetTitle: { fontSize: 20, fontWeight: "800" },
-    closeBtn: {
-      width: 32, height: 32, borderRadius: 16,
-      alignItems: "center", justifyContent: "center",
-    },
-    closeBtnText: { fontSize: 14, fontWeight: "600" },
-
-    themeOption: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 16,
-      borderRadius: 16,
-      borderWidth: 1,
-      padding: 18,
-      marginBottom: 12,
-    },
-    themeOptionIcon: { fontSize: 28 },
-    themeOptionLabel: { flex: 1, fontSize: 17, fontWeight: "600" },
-    checkCircle: {
-      width: 28, height: 28, borderRadius: 14,
-      alignItems: "center", justifyContent: "center",
-    },
-    checkMark: { color: "#fff", fontSize: 14, fontWeight: "800" },
+    version: { textAlign: "center", fontSize: 12, color: colors.textMuted, paddingVertical: 32 },
   });
 }
+
+// Modal uchun alohida static styles
+const ms = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12 },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 18 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  title: { fontSize: 20, fontWeight: "800" },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  closeTxt: { fontSize: 14, fontWeight: "600" },
+
+  avatarPreview: {
+    width: 64, height: 64, borderRadius: 20,
+    alignSelf: "center", alignItems: "center", justifyContent: "center", marginBottom: 20,
+  },
+  avatarText: { fontSize: 22, fontWeight: "800", color: "#fff" },
+
+  label: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
+  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15 },
+
+  saveBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 20 },
+  saveTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  themeRow: {
+    flexDirection: "row", alignItems: "center", gap: 14,
+    borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 10,
+  },
+  check: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+
+  // Toast
+  toast: {
+    position: "absolute", top: 60, alignSelf: "center",
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 20, paddingVertical: 13,
+    borderRadius: 32,
+    shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  toastTxt: { fontSize: 15, fontWeight: "600" },
+});

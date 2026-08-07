@@ -191,7 +191,7 @@ export default function OyinlarScreen() {
               <Text style={styles.bookTitle}>{item.title}</Text>
               <Text style={styles.bookSub}>{item.subtitle}</Text>
               <Text style={styles.bookMeta}>
-                {item.totalUnits} unit · {item.totalUnits * 20} so'z
+                {item.totalUnits} unit · {item.units.reduce((s, u) => s + u.words.length, 0)} so'z
               </Text>
             </View>
             <Text style={styles.chevron}>›</Text>

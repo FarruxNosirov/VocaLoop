@@ -33,6 +33,7 @@ function RootNavigator() {
         <Stack.Screen name="kitob/unit" options={{ headerShown: false }} />
         <Stack.Screen name="quiz/index" options={{ headerShown: false }} />
         <Stack.Screen name="quiz/result" options={{ headerShown: false }} />
+        <Stack.Screen name="quiz/irregular" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />

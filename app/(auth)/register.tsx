@@ -28,7 +28,7 @@ export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  function handleRegister() {
+  async function handleRegister() {
     if (!name.trim()) {
       Alert.alert("Xato", "Ismingizni kiriting");
       return;
@@ -48,8 +48,7 @@ export default function RegisterScreen() {
 
     setIsLoading(true);
     try {
-      register(name.trim(), phone.trim(), password);
-      // RootNavigator avtomatik (tabs) ga yo'naltiradi
+      await register(name.trim(), phone.trim(), password);
     } catch (e: any) {
       Alert.alert("Xato", e?.message ?? "Ro'yxatdan o'tishda xato yuz berdi");
     } finally {

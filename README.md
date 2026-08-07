@@ -1,57 +1,71 @@
-# VocaLoop — Boshlash yo'riqnomasi
+# VocaLoop
 
-## Loyihani ishga tushirish
-
-### 1-qadam: Expo o'rnatish
-```bash
-npm install -g expo-cli
-```
-
-### 2-qadam: Loyihani yaratish
-```bash
-npx create-expo-app VocaLoop
-cd VocaLoop
-```
-
-### 3-qadam: Kerakli kutubxonalarni o'rnatish
-```bash
-npx expo install expo-speech
-npx expo install @react-native-async-storage/async-storage
-```
-
-### 4-qadam: App.js ni almashtiris
-App.js faylini yuklangan fayl bilan almashtiring.
-
-### 5-qadam: Google API kalitini olish
-1. https://console.cloud.google.com saytiga kiring
-2. Yangi loyiha yarating: "VocaLoop"
-3. "Cloud Translation API" ni yoqing
-4. "Credentials" bo'limidan API kalit oling
-5. App.js dagi `YOUR_GOOGLE_API_KEY` o'rniga o'z kalitingizni kiriting
-
-### 6-qadam: Ilovani ishga tushirish
-```bash
-npx expo start
-```
-Telefonda "Expo Go" ilovasini o'rnating va QR kodni skanlang.
+Inglizcha so'zlarni o'zbek tiliga tarjima qilib, talaffuzi bilan birga yodlaydigan React Native ilova.
 
 ---
 
-## Ilova imkoniyatlari (MVP)
+## Ishga tushirish
 
-- Inglizcha so'z kiriting → O'zbekcha tarjima
-- Tarjima qilingan so'z avtomatik bugungi ro'yxatga qo'shiladi
-- Har bir so'z yonidagi ▶ tugmasi inglizcha + o'zbekcha o'qib beradi
-- "Barchasini o'qi" tugmasi barcha bugungi so'zlarni ketma-ket o'qib beradi
-- So'zlar telefon xotirasida saqlanadi (offline ishlaydi)
-- Har kun yangi ro'yxat boshlanadi
+```bash
+# 1. Repozitoriyani yuklab oling
+git clone https://github.com/<sizning-repo>.git
+cd VocaLoop
+
+# 2. Kutubxonalarni o'rnating
+npm install
+
+# 3. Ilovani ishga tushiring
+npx expo start
+```
+
+Telefonda **Expo Go** ilovasini o'rnating va QR kodni skanlang.
+
+---
+
+## Google API kalitlari
+
+`services/translate.ts` faylida tarjima uchun Google Translate API kaliti kerak:
+```ts
+const API_KEY = "YOUR_GOOGLE_TRANSLATE_API_KEY";
+```
+
+`services/tts.ts` faylida TTS uchun Google Cloud TTS API kaliti kerak:
+```ts
+const GOOGLE_API_KEY = "YOUR_GOOGLE_TTS_API_KEY";
+```
+
+> **Diqqat:** API kalitlarini hech qachon git'ga push qilmang. `.env` fayl yoki Expo secrets ishlatish tavsiya etiladi.
+
+---
+
+## Buyruqlar
+
+```bash
+npm start          # Expo development serverni ishga tushirish
+npm run ios        # iOS simulatorda ishga tushirish
+npm run android    # Android emulatorda ishga tushirish
+npm run lint       # ESLint tekshiruvi
+```
+
+---
+
+## Ilova imkoniyatlari
+
+- Ko'p tilli tarjima (40+ til) — Google Translate API orqali
+- TTS talaffuz — inglizcha va o'zbekcha
+- 10 ta kitob: 4000 Essential English Words (1-6), Oxford Word Skills, Irregular Verbs
+- So'z quizi — vaqtli test, coinlar tizimi
+- Irregular verbs quizi — V2/V3 shakllarini yodlash
+- Kunlik so'z tarixi — AsyncStorage'da saqlanadi
+- Yorug'/qorong'/sistema mavzulari
+- SQLite orqali mahalliy foydalanuvchi hisobi
 
 ---
 
 ## Keyingi bosqichlar (V2)
 
-- [ ] Firebase bilan foydalanuvchi hisobi
-- [ ] Statistika: nechta so'z o'rganildi
-- [ ] Spaced repetition: eski so'zlarni qaytarish
-- [ ] So'z toifalari (ish, sayohat, texnologiya...)
-- [ ] Freemium: kuniga 10 so'z bepul, undan ko'pi premium
+- [ ] Firebase bulut sinxronizatsiyasi
+- [ ] Spaced repetition algoritmi
+- [ ] So'z statistikasi va grafik
+- [ ] So'z toifalari
+- [ ] Freemium model

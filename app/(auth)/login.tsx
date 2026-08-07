@@ -26,7 +26,7 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  function handleLogin() {
+  async function handleLogin() {
     if (phone.trim().length < 13) {
       Alert.alert("Xato", "Telefon raqamni to'liq kiriting");
       return;
@@ -38,13 +38,12 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      const success = login(phone.trim(), password);
+      const success = await login(phone.trim(), password);
       if (!success) {
         Alert.alert("Kirish xatosi", "Telefon yoki parol noto'g'ri");
       }
-      // success bo'lsa RootNavigator avtomatik (tabs) ga yo'naltiradi
-    } catch {
-      Alert.alert("Xato", "Kirishda muammo yuz berdi");
+    } catch (e: any) {
+      Alert.alert("Xato", e?.message ?? "Kirishda muammo yuz berdi");
     } finally {
       setIsLoading(false);
     }

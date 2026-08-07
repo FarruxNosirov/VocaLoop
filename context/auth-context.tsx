@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   createContext,
   useCallback,
@@ -7,65 +8,89 @@ import React, {
 } from "react";
 
 import {
-  createUser,
-  findUserByPhone,
-  getFirstUser,
-  isPhoneTaken,
-  User,
-} from "@/database/userService";
+  apiLogin,
+  apiRegister,
+  apiUpdateProfile,
+  AuthUser,
+  getToken,
+  ProfileUpdateData,
+  removeToken,
+  saveToken,
+} from "@/services/api";
+
+const USER_KEY = "auth_user_v1";
 
 interface AuthContextValue {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
-  register: (name: string, phone: string, password: string) => void;
-  login: (phone: string, password: string) => boolean;
-  logout: () => void;
+  register: (name: string, phone: string, password: string) => Promise<void>;
+  login: (phone: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  updateProfile: (data: ProfileUpdateData) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Ilova ochilganda SQLite da foydalanuvchi bormi tekshirish
+  // Ilova ochilganda tokenni tekshirish
   useEffect(() => {
-    try {
-      const existingUser = getFirstUser();
-      if (existingUser) setUser(existingUser);
-    } catch (e) {
-      console.warn("Auth tekshirishda xato:", e);
-    } finally {
-      setIsLoading(false);
-    }
+    (async () => {
+      try {
+        const token = await getToken();
+        if (token) {
+          const saved = await AsyncStorage.getItem(USER_KEY);
+          if (saved) setUser(JSON.parse(saved));
+        }
+      } catch (e) {
+        console.warn("Auth yuklashda xato:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
   const register = useCallback(
-    (name: string, phone: string, password: string) => {
-      if (isPhoneTaken(phone)) {
-        throw new Error("Bu telefon raqam allaqachon ro'yxatdan o'tgan");
-      }
-      const newUser = createUser(name, phone, password);
-      setUser(newUser);
+    async (name: string, phone: string, password: string): Promise<void> => {
+      const res = await apiRegister(name, phone, password);
+      await saveToken(res.token);
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
+      setUser(res.user);
     },
-    [],
+    []
   );
 
-  const login = useCallback((phone: string, password: string): boolean => {
-    const found = findUserByPhone(phone);
-    if (!found || found.password !== password) return false;
-    const { password: _pwd, ...safeUser } = found;
-    setUser(safeUser);
-    return true;
-  }, []);
+  const login = useCallback(
+    async (phone: string, password: string): Promise<boolean> => {
+      try {
+        const res = await apiLogin(phone, password);
+        await saveToken(res.token);
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
+        setUser(res.user);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
 
-  // Faqat memory tozalanadi — SQLite dagi ma'lumotlar saqlanadi
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    await removeToken();
+    await AsyncStorage.removeItem(USER_KEY);
     setUser(null);
   }, []);
 
+  const updateProfile = useCallback(async (data: ProfileUpdateData) => {
+    const res = await apiUpdateProfile(data);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
+    setUser(res.user);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, register, login, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

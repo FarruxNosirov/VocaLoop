@@ -2,7 +2,7 @@ import { Audio } from "expo-av";
 import * as Speech from "expo-speech";
 
 // ─── Google Cloud TTS ───────────────────────────────────────────────────────
-const GOOGLE_API_KEY = "AIzaSyCPO68uUuFgnh1xYj1A3FWBHYYHpLmfZN4";
+const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_API_KEY ?? "";
 const GOOGLE_TTS_URL = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_API_KEY}`;
 
 // O'zbek tili uchun Google Translate TTS ishlatiladi (bepul, API kalit kerak emas)
