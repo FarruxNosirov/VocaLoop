@@ -43,16 +43,38 @@ async function request<T>(
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.message ?? "Server xatosi");
+    if (!res.ok) {
+      const err = new ApiError(data?.message ?? "Server xatosi", res.status);
+      throw err;
+    }
     return data as T;
   } catch (e: any) {
     if (e.name === "AbortError") {
-      throw new Error("Server bilan aloqa yo'q (timeout 10s)");
+      throw new ApiError("Server bilan aloqa yo'q (timeout 10s)", 0);
+    }
+    // Tarmoq xatosi (fetch failed) — status 0
+    if (!(e instanceof ApiError)) {
+      throw new ApiError(e?.message ?? "Tarmoq xatosi", 0);
     }
     throw e;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** status 0 = tarmoq muammosi (qayta urinish mumkin), 4xx/5xx = server javobi */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/** Xato tarmoq sababli bo'lganmi? (offline → navbatda qoldiramiz) */
+export function isNetworkError(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 0;
 }
 
 // ─── Auth API ────────────────────────────────────────────────────────────────
@@ -113,19 +135,31 @@ export async function apiUpdateProfile(
 
 // ─── Words API ───────────────────────────────────────────────────────────────
 
-export async function apiSyncWords(
-  words: { original: string; translated: string; time: string }[]
-) {
-  return request("/api/words/sync", {
+export interface ApiWord {
+  clientId: string;
+  original: string;
+  translated: string;
+  time: string;
+  date: string;
+  fromLangCode?: string;
+  toLangCode?: string;
+}
+
+export async function apiSyncWords(words: ApiWord[]) {
+  return request<{ synced: number }>("/api/words/sync", {
     method: "POST",
     body: JSON.stringify({ words }),
   });
 }
 
-export async function apiGetWords() {
-  return request<{ id: string; original: string; translated: string; time: string }[]>(
-    "/api/words"
-  );
+export async function apiGetWords(): Promise<ApiWord[]> {
+  return request<ApiWord[]>("/api/words");
+}
+
+export async function apiDeleteWord(clientId: string) {
+  return request<{ message: string }>(`/api/words/${clientId}`, {
+    method: "DELETE",
+  });
 }
 
 // ─── Quiz API ────────────────────────────────────────────────────────────────

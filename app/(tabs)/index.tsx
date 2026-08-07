@@ -8,7 +8,7 @@ import { TranslateInput } from "@/components/translate-input";
 import { WordList } from "@/components/word-list";
 import { Language, LANGUAGES } from "@/constants/languages";
 import { useTheme } from "@/context/theme-context";
-import { loadTodayWords, saveWords } from "@/services/storage";
+import { addWord, loadTodayWords, removeWord } from "@/services/storage";
 import { translateWord } from "@/services/translate";
 import { speakWithGoogle } from "@/services/tts";
 import { Word } from "@/types";
@@ -53,11 +53,9 @@ export default function HomeScreen() {
         toLangCode: toLang.code,
       };
 
-      setTodayWords((prev) => {
-        const updated = [newWord, ...prev];
-        saveWords(updated).catch((e) => console.error("Saqlashda xato:", e));
-        return updated;
-      });
+      // Lokal saqlash + backendga navbatga qo'yish
+      const updated = await addWord(newWord);
+      setTodayWords(updated);
     } catch {
       Alert.alert(
         "Xato",
@@ -132,11 +130,8 @@ export default function HomeScreen() {
 
   async function deleteWord(id: string) {
     try {
-      setTodayWords((prev) => {
-        const updated = prev.filter((w) => w.id !== id);
-        saveWords(updated).catch((e) => console.error("O'chirishda xato:", e));
-        return updated;
-      });
+      const updated = await removeWord(id);
+      setTodayWords(updated);
     } catch (e) {
       console.error("O'chirishda xato:", e);
     }

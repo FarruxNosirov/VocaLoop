@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiGetQuizResults, apiSyncQuizResults } from "./api";
-import { getToken } from "./api";
+import { apiGetQuizResults, getToken } from "./api";
+import { enqueue, enqueueMany } from "./sync-queue";
 
 const KEY = "quiz_results_v1";
 
@@ -37,11 +37,11 @@ export async function saveQuizResult(
   map[resultKey(bookId, unitNum)] = { ...result, completedAt };
   await AsyncStorage.setItem(KEY, JSON.stringify(map));
 
-  // Backendga yuborish (login bo'lsa)
-  const token = await getToken();
-  if (token) {
-    apiSyncQuizResults([{ bookId, unitNum, completedAt, ...result }]).catch(() => {});
-  }
+  // Navbatga: online bo'lsa darhol, offline bo'lsa internet paydo bo'lganda ketadi
+  await enqueue({
+    type: "quiz.save",
+    payload: { bookId, unitNum, completedAt, ...result },
+  });
 }
 
 // Login bo'lganda backenddan yuklab, lokalni yangilash
@@ -75,27 +75,27 @@ export async function syncResultsFromBackend(): Promise<void> {
 
 // Lokal barcha natijalarni backendga yuborish (login paytida)
 export async function pushLocalResultsToBackend(): Promise<void> {
-  try {
-    const token = await getToken();
-    if (!token) return;
+  const token = await getToken();
+  if (!token) return;
 
-    const map = await loadAll();
-    const entries = Object.entries(map);
-    if (!entries.length) return;
+  const map = await loadAll();
+  const entries = Object.entries(map);
+  if (!entries.length) return;
 
-    const results = entries.map(([key, val]) => {
-      const [bookId, unitNumStr] = key.split("_");
-      return {
-        bookId,
-        unitNum: parseInt(unitNumStr, 10),
+  const ops = entries.map(([key, val]) => {
+    // Kalit: "<bookId>_<unitNum>" — bookId da ham "_" bo'lishi mumkin (irregular-verbs)
+    const sep = key.lastIndexOf("_");
+    return {
+      type: "quiz.save" as const,
+      payload: {
+        bookId: key.slice(0, sep),
+        unitNum: parseInt(key.slice(sep + 1), 10),
         ...val,
-      };
-    });
+      },
+    };
+  });
 
-    await apiSyncQuizResults(results);
-  } catch {
-    // Offline — xato chiqarmaymiz
-  }
+  await enqueueMany(ops);
 }
 
 export async function getBookResults(bookId: string): Promise<ResultsMap> {

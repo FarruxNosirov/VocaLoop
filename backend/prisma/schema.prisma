@@ -21,15 +21,21 @@ model User {
 }
 
 model Word {
-  id         String   @id @default(uuid())
-  original   String
-  translated String
-  time       String
-  isLearned  Boolean  @default(false)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(uuid())
+  clientId     String
+  original     String
+  translated   String
+  time         String
+  date         String
+  fromLangCode String?
+  toLangCode   String?
+  isLearned    Boolean  @default(false)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, clientId])
 }
 
 model QuizResult {
