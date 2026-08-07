@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
 import userRoutes from './routes/user.routes';
 import wordRoutes from './routes/word.routes';
+import quizRoutes from './routes/quiz.routes';
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/words', wordRoutes);
+app.use('/api/quiz', quizRoutes);
 
 app.get('/', (req, res) => {
   res.send('VocaLoop API is running...');

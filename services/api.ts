@@ -127,3 +127,25 @@ export async function apiGetWords() {
     "/api/words"
   );
 }
+
+// ─── Quiz API ────────────────────────────────────────────────────────────────
+
+export interface ApiQuizResult {
+  bookId: string;
+  unitNum: number;
+  correct: number;
+  total: number;
+  coins: number;
+  completedAt: string;
+}
+
+export async function apiSyncQuizResults(results: ApiQuizResult[]) {
+  return request<{ synced: number }>("/api/quiz/sync", {
+    method: "POST",
+    body: JSON.stringify({ results }),
+  });
+}
+
+export async function apiGetQuizResults(): Promise<ApiQuizResult[]> {
+  return request<ApiQuizResult[]>("/api/quiz/results");
+}

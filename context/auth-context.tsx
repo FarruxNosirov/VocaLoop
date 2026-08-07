@@ -17,6 +17,10 @@ import {
   removeToken,
   saveToken,
 } from "@/services/api";
+import {
+  pushLocalResultsToBackend,
+  syncResultsFromBackend,
+} from "@/services/quiz-storage";
 
 const USER_KEY = "auth_user_v1";
 
@@ -43,6 +47,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (token) {
           const saved = await AsyncStorage.getItem(USER_KEY);
           if (saved) setUser(JSON.parse(saved));
+          // Backenddan natijalarni yuklab lokal bilan birlashtirish
+          syncResultsFromBackend().catch(() => {});
         }
       } catch (e) {
         console.warn("Auth yuklashda xato:", e);
@@ -69,6 +75,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await saveToken(res.token);
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
         setUser(res.user);
+        // Lokal natijalarni backendga yuborish + backendnikini yuklab olish
+        pushLocalResultsToBackend().catch(() => {});
+        syncResultsFromBackend().catch(() => {});
         return true;
       } catch {
         return false;
