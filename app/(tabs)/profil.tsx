@@ -16,9 +16,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import NetInfo from "@react-native-community/netinfo";
+
 import { ThemeColors } from "@/constants/app-colors";
 import { useAuth } from "@/context/auth-context";
 import { ThemeMode, useTheme } from "@/context/theme-context";
+import { getPendingCount, onQueueChange } from "@/services/sync-queue";
 import {
   getActiveDaysCount,
   getStreak,
@@ -227,6 +230,48 @@ function Toast({ message, colors }: { message: string; colors: ThemeColors }) {
   );
 }
 
+// ─── Sinxronlash indikatori ───────────────────────────────────────────────────
+
+function SyncBanner({ colors }: { colors: ThemeColors }) {
+  const [pending, setPending] = useState(0);
+  const [online, setOnline] = useState(true);
+
+  useEffect(() => {
+    getPendingCount().then(setPending);
+    const unsub = onQueueChange(setPending);
+    const netUnsub = NetInfo.addEventListener((st) =>
+      setOnline(st.isConnected !== false)
+    );
+    return () => { unsub(); netUnsub(); };
+  }, []);
+
+  if (online && pending === 0) return null;
+
+  const offline = !online;
+  return (
+    <View
+      style={[
+        ms.syncBanner,
+        { backgroundColor: offline ? colors.warningLight : colors.primaryLight },
+      ]}
+    >
+      <Text style={{ fontSize: 16 }}>{offline ? "📴" : "🔄"}</Text>
+      <Text
+        style={[
+          ms.syncTxt,
+          { color: offline ? colors.warning : colors.primary },
+        ]}
+      >
+        {offline
+          ? pending > 0
+            ? `Internet yo'q — ${pending} ta o'zgarish saqlanmoqda`
+            : "Internet yo'q — offline rejim"
+          : `${pending} ta o'zgarish yuborilmoqda...`}
+      </Text>
+    </View>
+  );
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfilScreen() {
@@ -293,6 +338,8 @@ export default function ProfilScreen() {
             <Text style={s.userSub}>{user?.email ?? "So'zlarni sinxronlash uchun kiring"}</Text>
           </View>
         </View>
+
+        <SyncBanner colors={colors} />
 
         {/* Stats */}
         <View style={s.statsRow}>
@@ -492,4 +539,12 @@ const ms = StyleSheet.create({
     elevation: 8,
   },
   toastTxt: { fontSize: 15, fontWeight: "600" },
+
+  // Sinxronlash banneri
+  syncBanner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginTop: 12,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 11,
+  },
+  syncTxt: { fontSize: 13, fontWeight: "600", flex: 1 },
 });

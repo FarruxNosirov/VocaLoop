@@ -170,13 +170,13 @@ let unsubscribeNet: (() => void) | null = null;
 
 /** Ilova ochilganda chaqiriladi: internet paydo bo'lishi bilan navbat yuboriladi */
 export function startAutoSync(): () => void {
-  if (unsubscribeNet) return unsubscribeNet;
-
-  unsubscribeNet = NetInfo.addEventListener((state) => {
-    if (state.isConnected && state.isInternetReachable !== false) {
-      flush().catch(() => {});
-    }
-  });
+  if (!unsubscribeNet) {
+    unsubscribeNet = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) {
+        flush().catch(() => {});
+      }
+    });
+  }
 
   flush().catch(() => {});
 
