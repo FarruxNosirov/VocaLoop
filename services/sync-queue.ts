@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 
 import {
+  ApiError,
   ApiQuizResult,
   ApiWord,
   apiDeleteWord,
@@ -109,8 +110,8 @@ function opKey(op: SyncOp): string {
 
 /**
  * Navbatni ketma-ket backendga yuboradi.
- * - Tarmoq xatosi → to'xtaydi, qolganlari navbatda saqlanadi
- * - Server xatosi (4xx) → operatsiya tashlanadi (aks holda navbatni bloklaydi)
+ * - Tarmoq/server vaqtinchalik xatosi → to'xtaydi, qolganlari navbatda saqlanadi
+ * - Ma'lumot rad etildi (400 va h.k.) → operatsiya tashlanadi (aks holda navbatni bloklaydi)
  */
 export async function flush(): Promise<void> {
   if (isFlushing) return;
@@ -132,11 +133,11 @@ export async function flush(): Promise<void> {
         queue = queue.slice(1);
         await saveQueue(queue);
       } catch (e) {
-        if (isNetworkError(e)) {
-          // Offline — keyinroq davom etamiz
+        if (isRetryable(e)) {
+          // Offline, sessiya tugagan yoki server vaqtincha ishlamayapti — keyin davom etamiz
           break;
         }
-        // Server rad etdi — bu operatsiyani tashlab ketamiz
+        // Server ma'lumotni rad etdi (400 va h.k.) — qayta yuborish foyda bermaydi
         console.warn(`Sync: ${op.type} tashlandi —`, (e as Error)?.message);
         queue = queue.slice(1);
         await saveQueue(queue);
@@ -145,6 +146,14 @@ export async function flush(): Promise<void> {
   } finally {
     isFlushing = false;
   }
+}
+
+/** Keyinroq qayta urinib ko'rish mumkin bo'lgan xatolar — operatsiya navbatda qoladi */
+function isRetryable(e: unknown): boolean {
+  if (isNetworkError(e)) return true;
+  if (!(e instanceof ApiError)) return true;
+  const { status } = e;
+  return status === 401 || status === 404 || status === 408 || status === 429 || status >= 500;
 }
 
 async function runOp(op: SyncOp): Promise<void> {

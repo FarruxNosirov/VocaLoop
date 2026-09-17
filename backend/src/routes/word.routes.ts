@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth.middleware';
+import { isShortText } from '../lib/validate';
 
 const router = Router();
 
@@ -38,6 +39,17 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
     }
     if (words.length === 0) {
       return res.json({ synced: 0 });
+    }
+    if (words.length > 500) {
+      return res.status(400).json({ message: "Bir so'rovda 500 tadan ko'p so'z bo'lmasin" });
+    }
+    const valid = words.every((w) =>
+      isShortText(w?.clientId, 64) && isShortText(w?.original, 500) &&
+      isShortText(w?.translated, 1000) && isShortText(w?.time, 16) &&
+      typeof w?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w.date)
+    );
+    if (!valid) {
+      return res.status(400).json({ message: "So'z ma'lumoti noto'g'ri" });
     }
 
     await Promise.all(

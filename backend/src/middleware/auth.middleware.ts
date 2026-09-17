@@ -10,13 +10,14 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
-    res.status(401).json({ message: 'Authentication token missing' });
+    res.status(401).json({ message: 'Avtorizatsiya talab qilinadi' });
     return;
   }
 
   jwt.verify(token, process.env.JWT_SECRET!, (err: any, user: any) => {
     if (err) {
-      return res.status(403).json({ message: 'Invalid or expired token' });
+      // 401 — ilova sessiyani tugatib, qayta login so'raydi
+      return res.status(401).json({ message: 'Sessiya tugagan, qayta kiring' });
     }
     req.user = user;
     next();

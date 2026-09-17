@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,6 +22,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { ThemeColors } from "@/constants/app-colors";
 import { useAuth } from "@/context/auth-context";
 import { ThemeMode, useTheme } from "@/context/theme-context";
+import { PRIVACY_URL } from "@/services/api";
 import { getPendingCount, onQueueChange } from "@/services/sync-queue";
 import {
   getActiveDaysCount,
@@ -209,6 +211,91 @@ function ThemeModal({
   );
 }
 
+// ─── Delete Account Modal ─────────────────────────────────────────────────────
+
+function DeleteAccountModal({
+  visible, colors, onClose, onConfirm,
+}: {
+  visible: boolean;
+  colors: ThemeColors;
+  onClose: () => void;
+  onConfirm: (password: string) => Promise<void>;
+}) {
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) setPassword("");
+  }, [visible]);
+
+  async function handleDelete() {
+    if (!password) {
+      Alert.alert("Xato", "Tasdiqlash uchun parolingizni kiriting");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onConfirm(password);
+    } catch (e: any) {
+      Alert.alert("Xato", e?.message ?? "Hisobni o'chirib bo'lmadi");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableOpacity style={ms.overlay} activeOpacity={1} onPress={onClose} />
+        <View style={[ms.sheet, { backgroundColor: colors.surface }]}>
+          <View style={[ms.handle, { backgroundColor: colors.border }]} />
+
+          <View style={ms.header}>
+            <Text style={[ms.title, { color: colors.danger }]}>{"Hisobni o'chirish"}</Text>
+            <TouchableOpacity
+              style={[ms.closeBtn, { backgroundColor: colors.border }]}
+              onPress={onClose}
+            >
+              <Text style={[ms.closeTxt, { color: colors.textMuted }]}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={[ms.warning, { color: colors.textPrimary, backgroundColor: colors.dangerLight }]}>
+            {"Hisobingiz, barcha so'zlaringiz va test natijalaringiz butunlay o'chiriladi. Bu amalni qaytarib bo'lmaydi."}
+          </Text>
+
+          <Text style={[ms.label, { color: colors.textMuted, marginTop: 16 }]}>Parol</Text>
+          <TextInput
+            style={[ms.input, { color: colors.textPrimary, backgroundColor: colors.background, borderColor: colors.border }]}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Parolingizni kiriting"
+            placeholderTextColor={colors.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+          />
+
+          <TouchableOpacity
+            style={[ms.saveBtn, { backgroundColor: colors.danger }, loading && { opacity: 0.6 }]}
+            onPress={handleDelete}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={ms.saveTxt}>{"Butunlay o'chirish"}</Text>
+            }
+          </TouchableOpacity>
+
+          <View style={{ height: 28 }} />
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 function Toast({ message, colors }: { message: string; colors: ThemeColors }) {
@@ -275,7 +362,7 @@ function SyncBanner({ colors }: { colors: ThemeColors }) {
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfilScreen() {
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile, deleteAccount } = useAuth();
   const { colors, theme, setTheme } = useTheme();
   const router = useRouter();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -283,6 +370,7 @@ export default function ProfilScreen() {
   const [stats, setStats] = useState<Stats>({ totalWords: 0, activeDays: 0, streak: 0 });
   const [editSheet, setEditSheet] = useState(false);
   const [themeSheet, setThemeSheet] = useState(false);
+  const [deleteSheet, setDeleteSheet] = useState(false);
   const [toastKey, setToastKey] = useState<number | null>(null);
 
   useEffect(() => {
@@ -296,14 +384,24 @@ export default function ProfilScreen() {
     setTimeout(() => setToastKey(null), 2500);
   }
 
-  function handleLogout() {
-    Alert.alert("Chiqish", "Hisobdan chiqmoqchimisiz?", [
+  async function handleLogout() {
+    const pendingCount = await getPendingCount();
+    const message = pendingCount > 0
+      ? `${pendingCount} ta o'zgarish hali serverga yuborilmagan va chiqsangiz yo'qoladi. Avval internetga ulaning.`
+      : "Hisobdan chiqmoqchimisiz?";
+    Alert.alert("Chiqish", message, [
       { text: "Bekor", style: "cancel" },
       {
         text: "Chiqish", style: "destructive",
         onPress: async () => { await logout(); router.replace("/(auth)/welcome"); },
       },
     ]);
+  }
+
+  async function handleDeleteAccount(password: string) {
+    await deleteAccount(password);
+    setDeleteSheet(false);
+    router.replace("/(auth)/welcome");
   }
 
   const handleSaveProfile = useCallback(async (name: string, phone: string) => {
@@ -376,6 +474,9 @@ export default function ProfilScreen() {
             <Divider color={colors.border} />
             <MenuItem icon="🚪" iconBg={colors.dangerLight} label="Chiqish"
               onPress={handleLogout} danger colors={colors} />
+            <Divider color={colors.border} />
+            <MenuItem icon="🗑" iconBg={colors.dangerLight} label="Hisobni o'chirish"
+              onPress={() => setDeleteSheet(true)} danger colors={colors} />
           </View>
         </View>
 
@@ -387,9 +488,8 @@ export default function ProfilScreen() {
               value={themeOptions.find((o) => o.key === theme)?.label}
               onPress={() => setThemeSheet(true)} colors={colors} />
             <Divider color={colors.border} />
-            <MenuItem icon="🔔" iconBg={colors.warningLight} label="Daily Reminder"
-              onPress={() => Alert.alert("Tez kunda", "Bu funksiya keyingi versiyada qo'shiladi")}
-              colors={colors} />
+            <MenuItem icon="🔒" iconBg={colors.successLight} label="Maxfiylik siyosati"
+              onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} colors={colors} />
           </View>
         </View>
 
@@ -403,6 +503,13 @@ export default function ProfilScreen() {
         colors={colors}
         onClose={() => setEditSheet(false)}
         onSave={handleSaveProfile}
+      />
+
+      <DeleteAccountModal
+        visible={deleteSheet}
+        colors={colors}
+        onClose={() => setDeleteSheet(false)}
+        onConfirm={handleDeleteAccount}
       />
 
       <ThemeModal
@@ -519,6 +626,8 @@ const ms = StyleSheet.create({
 
   label: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
   input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 13, fontSize: 15 },
+
+  warning: { fontSize: 14, lineHeight: 20, padding: 14, borderRadius: 12, overflow: "hidden" },
 
   saveBtn: { borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 20 },
   saveTxt: { color: "#fff", fontSize: 16, fontWeight: "700" },

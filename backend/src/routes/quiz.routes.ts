@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken, AuthRequest } from '../middleware/auth.middleware';
+import { isShortText } from '../lib/validate';
 
 const router = Router();
 
@@ -33,6 +34,14 @@ router.post('/sync', authenticateToken, async (req: AuthRequest, res: Response) 
 
     if (!Array.isArray(results) || results.length === 0) {
       return res.json({ synced: 0 });
+    }
+    const isCount = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 100000;
+    const valid = results.length <= 1000 && results.every((r) =>
+      isShortText(r?.bookId, 64) && isCount(r?.unitNum) && isCount(r?.correct) &&
+      isCount(r?.total) && isCount(r?.coins) && isShortText(r?.completedAt, 40)
+    );
+    if (!valid) {
+      return res.status(400).json({ message: "Natija ma'lumoti noto'g'ri" });
     }
 
     // Har birini upsert qilamiz (mavjud bo'lsa yangilaymiz, yo'q bo'lsa qo'shamiz)

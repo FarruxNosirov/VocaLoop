@@ -1,7 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Simulator: localhost, Haqiqiy qurilma: Mac'ning lokal IP'si
-const BASE_URL = "https://vocaloop-production.up.railway.app";
+// Backend manzili: .env dagi EXPO_PUBLIC_API_URL, bo'lmasa production
+export const BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? "https://vocaloop-production.up.railway.app";
+
+export const PRIVACY_URL = `${BASE_URL}/privacy`;
 
 const TOKEN_KEY = "auth_token_v1";
 
@@ -17,6 +20,15 @@ export async function getToken(): Promise<string | null> {
 
 export async function removeToken() {
   await AsyncStorage.removeItem(TOKEN_KEY);
+}
+
+// ─── Sessiya tugashi ──────────────────────────────────────────────────────────
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Server 401 qaytarganda chaqiriladigan funksiyani o'rnatadi (auth-context) */
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  unauthorizedHandler = fn;
 }
 
 // ─── Asosiy so'rov funksiyasi ─────────────────────────────────────────────────
@@ -44,8 +56,9 @@ async function request<T>(
 
     const data = await res.json();
     if (!res.ok) {
-      const err = new ApiError(data?.message ?? "Server xatosi", res.status);
-      throw err;
+      // Token yaroqsiz (masalan, muddati o'tgan) — sessiyani tugatamiz
+      if (res.status === 401 && token) unauthorizedHandler?.();
+      throw new ApiError(data?.message ?? "Server xatosi", res.status);
     }
     return data as T;
   } catch (e: any) {
@@ -126,10 +139,18 @@ export async function apiGetProfile(): Promise<AuthUser & { createdAt: string }>
 
 export async function apiUpdateProfile(
   data: ProfileUpdateData
-): Promise<{ message: string; user: AuthUser }> {
+): Promise<{ user: AuthUser }> {
   return request("/api/user/profile", {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+}
+
+/** Hisobni va unga tegishli barcha ma'lumotni serverdan o'chiradi */
+export async function apiDeleteAccount(password: string): Promise<{ message: string }> {
+  return request("/api/user/profile", {
+    method: "DELETE",
+    body: JSON.stringify({ password }),
   });
 }
 

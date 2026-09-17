@@ -8,6 +8,8 @@ import React, {
 } from "react";
 
 import {
+  ApiError,
+  apiDeleteAccount,
   apiLogin,
   apiRegister,
   apiUpdateProfile,
@@ -17,7 +19,9 @@ import {
   ProfileUpdateData,
   removeToken,
   saveToken,
+  setUnauthorizedHandler,
 } from "@/services/api";
+import { claimLocalData, clearLocalUserData } from "@/services/local-data";
 import {
   pushLocalResultsToBackend,
   syncResultsFromBackend,
@@ -37,6 +41,7 @@ interface AuthContextValue {
   login: (phone: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (data: ProfileUpdateData) => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -62,12 +67,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stopAutoSync = startAutoSync();
 
+    // Token yaroqsiz bo'lsa: login ekraniga qaytaramiz, lekin lokal ma'lumot qoladi —
+    // o'sha foydalanuvchi qayta kirsa, navbatdagi o'zgarishlar yuboriladi
+    setUnauthorizedHandler(() => {
+      (async () => {
+        await removeToken();
+        await AsyncStorage.removeItem(USER_KEY);
+        setUser(null);
+      })();
+    });
+
     (async () => {
       try {
         const token = await getToken();
         if (token) {
           const saved = await AsyncStorage.getItem(USER_KEY);
-          if (saved) setUser(JSON.parse(saved));
+          if (saved) {
+            const savedUser: AuthUser = JSON.parse(saved);
+            await claimLocalData(savedUser.id);
+            setUser(savedUser);
+          }
           fullSync();
         }
       } catch (e) {
@@ -77,12 +96,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })();
 
-    return stopAutoSync;
+    return () => {
+      stopAutoSync();
+      setUnauthorizedHandler(null);
+    };
   }, []);
 
   const register = useCallback(
     async (name: string, phone: string, password: string): Promise<void> => {
       const res = await apiRegister(name, phone, password);
+      await claimLocalData(res.user.id);
       await saveToken(res.token);
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
       setUser(res.user);
@@ -95,23 +118,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async (phone: string, password: string): Promise<boolean> => {
       try {
         const res = await apiLogin(phone, password);
+        await claimLocalData(res.user.id);
         await saveToken(res.token);
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(res.user));
         setUser(res.user);
         fullSync();
         return true;
       } catch (e) {
-        // Tarmoq muammosi — "parol noto'g'ri" deb aldamaymiz
-        if (isNetworkError(e)) throw e;
-        return false;
+        // Faqat server "noto'g'ri" desa false; tarmoq, limit va boshqa xatolar xabari bilan chiqadi
+        if (e instanceof ApiError && e.status === 400) return false;
+        throw e;
       }
     },
     []
   );
 
+  // Chiqish: shu qurilmadagi foydalanuvchi ma'lumotlari ham tozalanadi
   const logout = useCallback(async () => {
     await removeToken();
     await AsyncStorage.removeItem(USER_KEY);
+    await clearLocalUserData();
+    setUser(null);
+  }, []);
+
+  // Hisobni o'chirish: avval serverdan (parol bilan), keyin qurilmadan
+  const deleteAccount = useCallback(async (password: string) => {
+    await apiDeleteAccount(password);
+    await removeToken();
+    await AsyncStorage.removeItem(USER_KEY);
+    await clearLocalUserData();
     setUser(null);
   }, []);
 
@@ -138,7 +173,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, register, login, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, register, login, logout, updateProfile, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );
