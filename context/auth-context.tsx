@@ -21,6 +21,7 @@ import {
   saveToken,
   setUnauthorizedHandler,
 } from "@/services/api";
+import { SERVER_ENABLED } from "@/services/config";
 import { claimLocalData, clearLocalUserData } from "@/services/local-data";
 import {
   pushLocalResultsToBackend,
@@ -33,6 +34,9 @@ import {
 import { enqueue, startAutoSync } from "@/services/sync-queue";
 
 const USER_KEY = "auth_user_v1";
+
+/** Serversiz rejimdagi standart profil (ism keyin kiritiladi) */
+const LOCAL_USER: AuthUser = { id: "local", email: "", name: null };
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -51,6 +55,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * Offline bo'lsa jim o'tadi — ma'lumot navbatda saqlanadi.
  */
 function fullSync(): void {
+  if (!SERVER_ENABLED) return;
   (async () => {
     await pushLocalWordsToBackend().catch(() => {});
     await pushLocalResultsToBackend().catch(() => {});
@@ -69,6 +74,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Token yaroqsiz bo'lsa: login ekraniga qaytaramiz, lekin lokal ma'lumot qoladi —
     // o'sha foydalanuvchi qayta kirsa, navbatdagi o'zgarishlar yuboriladi
+    if (!SERVER_ENABLED) {
+      // Serversiz rejim: profil faqat shu telefonda saqlanadi
+      (async () => {
+        const saved = await AsyncStorage.getItem(USER_KEY);
+        setUser(saved ? JSON.parse(saved) : LOCAL_USER);
+        setIsLoading(false);
+      })();
+      return stopAutoSync;
+    }
+
     setUnauthorizedHandler(() => {
       (async () => {
         await removeToken();
@@ -104,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = useCallback(
     async (name: string, phone: string, password: string): Promise<void> => {
+      if (!SERVER_ENABLED) throw new Error("Server yoqilmagan");
       const res = await apiRegister(name, phone, password);
       await claimLocalData(res.user.id);
       await saveToken(res.token);
@@ -116,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (phone: string, password: string): Promise<boolean> => {
+      if (!SERVER_ENABLED) throw new Error("Server yoqilmagan");
       try {
         const res = await apiLogin(phone, password);
         await claimLocalData(res.user.id);
@@ -143,14 +160,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Hisobni o'chirish: avval serverdan (parol bilan), keyin qurilmadan
   const deleteAccount = useCallback(async (password: string) => {
-    await apiDeleteAccount(password);
-    await removeToken();
+    if (SERVER_ENABLED) {
+      await apiDeleteAccount(password);
+      await removeToken();
+      await AsyncStorage.removeItem(USER_KEY);
+      await clearLocalUserData();
+      setUser(null);
+      return;
+    }
+
+    // Serversiz rejim: barcha ma'lumot telefondan o'chiriladi, profil bo'shatiladi
     await AsyncStorage.removeItem(USER_KEY);
     await clearLocalUserData();
-    setUser(null);
+    setUser(LOCAL_USER);
   }, []);
 
   const updateProfile = useCallback(async (data: ProfileUpdateData) => {
+    if (!SERVER_ENABLED) {
+      const saved = await AsyncStorage.getItem(USER_KEY);
+      const current: AuthUser = saved ? JSON.parse(saved) : LOCAL_USER;
+      const next: AuthUser = { ...current, ...(data.name !== undefined ? { name: data.name } : {}) };
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(next));
+      setUser(next);
+      return;
+    }
+
     let updated: AuthUser;
     try {
       const res = await apiUpdateProfile(data);

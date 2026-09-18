@@ -13,6 +13,7 @@ import {
   isNetworkError,
   ProfileUpdateData,
 } from "./api";
+import { SERVER_ENABLED } from "./config";
 
 const QUEUE_KEY = "sync_queue_v1";
 
@@ -61,6 +62,8 @@ export function onQueueChange(fn: (pending: number) => void): () => void {
  * Offline bo'lsa navbatda qoladi — internet paydo bo'lganda avtomatik ketadi.
  */
 export async function enqueue(op: Omit<SyncOp, "id">): Promise<void> {
+  if (!SERVER_ENABLED) return; // serversiz rejim: navbat to'planmaydi
+
   const queue = await loadQueue();
 
   // Bir xil obyekt ustidagi eski operatsiyani olib tashlaymiz (oxirgisi g'olib)
@@ -75,7 +78,7 @@ export async function enqueue(op: Omit<SyncOp, "id">): Promise<void> {
 
 /** Bir nechta operatsiyani birdan navbatga qo'shish (login paytidagi ommaviy yuklash) */
 export async function enqueueMany(ops: Omit<SyncOp, "id">[]): Promise<void> {
-  if (ops.length === 0) return;
+  if (!SERVER_ENABLED || ops.length === 0) return;
 
   const queue = await loadQueue();
   const newKeys = new Set(ops.map((o) => opKey(o as SyncOp)));
@@ -114,7 +117,7 @@ function opKey(op: SyncOp): string {
  * - Ma'lumot rad etildi (400 va h.k.) → operatsiya tashlanadi (aks holda navbatni bloklaydi)
  */
 export async function flush(): Promise<void> {
-  if (isFlushing) return;
+  if (!SERVER_ENABLED || isFlushing) return;
 
   const token = await getToken();
   if (!token) return; // login qilinmagan
@@ -179,6 +182,12 @@ let unsubscribeNet: (() => void) | null = null;
 
 /** Ilova ochilganda chaqiriladi: internet paydo bo'lishi bilan navbat yuboriladi */
 export function startAutoSync(): () => void {
+  if (!SERVER_ENABLED) {
+    // Serversiz rejim: avvalgi rejimdan qolgan navbatni tozalaymiz
+    AsyncStorage.removeItem(QUEUE_KEY).catch(() => {});
+    return () => {};
+  }
+
   if (!unsubscribeNet) {
     unsubscribeNet = NetInfo.addEventListener((state) => {
       if (state.isConnected && state.isInternetReachable !== false) {

@@ -1,5 +1,4 @@
-import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,7 +21,7 @@ import NetInfo from "@react-native-community/netinfo";
 import { ThemeColors } from "@/constants/app-colors";
 import { useAuth } from "@/context/auth-context";
 import { ThemeMode, useTheme } from "@/context/theme-context";
-import { PRIVACY_URL } from "@/services/api";
+import { SERVER_ENABLED } from "@/services/config";
 import { getPendingCount, onQueueChange } from "@/services/sync-queue";
 import {
   getActiveDaysCount,
@@ -69,7 +68,7 @@ function EditProfileModal({
       Alert.alert("Xato", "Ism bo'sh bo'lishi mumkin emas");
       return;
     }
-    if (phone.trim().length < 4) {
+    if (SERVER_ENABLED && phone.trim().length < 4) {
       Alert.alert("Xato", "Telefon raqamni kiriting");
       return;
     }
@@ -126,17 +125,21 @@ function EditProfileModal({
             returnKeyType="next"
           />
 
-          {/* Phone */}
-          <Text style={[ms.label, { color: colors.textMuted, marginTop: 14 }]}>Telefon raqam</Text>
-          <TextInput
-            style={[ms.input, { color: colors.textPrimary, backgroundColor: colors.background, borderColor: colors.border }]}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="+998 90 123 45 67"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="phone-pad"
-            returnKeyType="done"
-          />
+          {/* Phone — faqat serverli rejimda */}
+          {SERVER_ENABLED && (
+            <>
+              <Text style={[ms.label, { color: colors.textMuted, marginTop: 14 }]}>Telefon raqam</Text>
+              <TextInput
+                style={[ms.input, { color: colors.textPrimary, backgroundColor: colors.background, borderColor: colors.border }]}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+998 90 123 45 67"
+                placeholderTextColor={colors.textMuted}
+                keyboardType="phone-pad"
+                returnKeyType="done"
+              />
+            </>
+          )}
 
           {/* Save */}
           <TouchableOpacity
@@ -373,11 +376,14 @@ export default function ProfilScreen() {
   const [deleteSheet, setDeleteSheet] = useState(false);
   const [toastKey, setToastKey] = useState<number | null>(null);
 
-  useEffect(() => {
-    Promise.all([getTotalWordCount(), getActiveDaysCount(), getStreak()])
-      .then(([totalWords, activeDays, streak]) => setStats({ totalWords, activeDays, streak }))
-      .catch(console.error);
-  }, []);
+  // Har safar Profil ekraniga qaytilganda statistika yangilanadi
+  useFocusEffect(
+    useCallback(() => {
+      Promise.all([getTotalWordCount(), getActiveDaysCount(), getStreak()])
+        .then(([totalWords, activeDays, streak]) => setStats({ totalWords, activeDays, streak }))
+        .catch(console.error);
+    }, [])
+  );
 
   function showToast() {
     setToastKey(Date.now());
@@ -396,6 +402,24 @@ export default function ProfilScreen() {
         onPress: async () => { await logout(); router.replace("/(auth)/welcome"); },
       },
     ]);
+  }
+
+  function handleClearData() {
+    Alert.alert(
+      "Ma'lumotlarni tozalash",
+      "Barcha so'zlaringiz va test natijalaringiz shu telefondan o'chiriladi. Bu amalni qaytarib bo'lmaydi.",
+      [
+        { text: "Bekor", style: "cancel" },
+        {
+          text: "O'chirish",
+          style: "destructive",
+          onPress: async () => {
+            await deleteAccount("");
+            setStats({ totalWords: 0, activeDays: 0, streak: 0 });
+          },
+        },
+      ]
+    );
   }
 
   async function handleDeleteAccount(password: string) {
@@ -432,12 +456,16 @@ export default function ProfilScreen() {
             <Text style={s.avatarText}>{initials}</Text>
           </View>
           <View style={s.userInfo}>
-            <Text style={s.userName}>{user?.name ?? "—"}</Text>
-            <Text style={s.userSub}>{user?.email ?? "So'zlarni sinxronlash uchun kiring"}</Text>
+            <Text style={s.userName}>{user?.name || "Ismingizni kiriting"}</Text>
+            <Text style={s.userSub}>
+              {SERVER_ENABLED
+                ? user?.email || "So'zlarni sinxronlash uchun kiring"
+                : "Ma'lumotlar shu telefonda saqlanadi"}
+            </Text>
           </View>
         </View>
 
-        <SyncBanner colors={colors} />
+        {SERVER_ENABLED && <SyncBanner colors={colors} />}
 
         {/* Stats */}
         <View style={s.statsRow}>
@@ -471,12 +499,22 @@ export default function ProfilScreen() {
           <View style={s.menuCard}>
             <MenuItem icon="👤" iconBg={colors.primaryLight} label="Profilni tahrirlash"
               value={user?.name ?? undefined} onPress={() => setEditSheet(true)} colors={colors} />
+            {SERVER_ENABLED && (
+              <>
+                <Divider color={colors.border} />
+                <MenuItem icon="🚪" iconBg={colors.dangerLight} label="Chiqish"
+                  onPress={handleLogout} danger colors={colors} />
+              </>
+            )}
             <Divider color={colors.border} />
-            <MenuItem icon="🚪" iconBg={colors.dangerLight} label="Chiqish"
-              onPress={handleLogout} danger colors={colors} />
-            <Divider color={colors.border} />
-            <MenuItem icon="🗑" iconBg={colors.dangerLight} label="Hisobni o'chirish"
-              onPress={() => setDeleteSheet(true)} danger colors={colors} />
+            <MenuItem
+              icon="🗑"
+              iconBg={colors.dangerLight}
+              label={SERVER_ENABLED ? "Hisobni o'chirish" : "Ma'lumotlarni tozalash"}
+              onPress={SERVER_ENABLED ? () => setDeleteSheet(true) : handleClearData}
+              danger
+              colors={colors}
+            />
           </View>
         </View>
 
@@ -489,7 +527,7 @@ export default function ProfilScreen() {
               onPress={() => setThemeSheet(true)} colors={colors} />
             <Divider color={colors.border} />
             <MenuItem icon="🔒" iconBg={colors.successLight} label="Maxfiylik siyosati"
-              onPress={() => WebBrowser.openBrowserAsync(PRIVACY_URL)} colors={colors} />
+              onPress={() => router.push("/privacy")} colors={colors} />
           </View>
         </View>
 

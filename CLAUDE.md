@@ -28,7 +28,21 @@ There are no automated tests configured in this project.
 - **TTS**: `services/tts.ts` — Google Cloud TTS (needs `EXPO_PUBLIC_GOOGLE_API_KEY`), falls back to `expo-speech`
 - **Books**: static data in `constants/books/*.ts`, aggregated by `constants/books-data.ts`
 
-### Offline-first data flow
+### Local-only mode (current)
+
+`services/config.ts` exports `SERVER_ENABLED`. It is **false**: the app runs entirely on the
+device — no login screen, nothing is sent to a server, and nothing is queued. The backend and the
+sync engine below are kept intact; setting the flag to `true` (plus `EXPO_PUBLIC_API_URL`) turns
+them back on.
+
+What the flag gates:
+- `app/_layout.tsx` — the redirect to `(auth)/welcome`; screens in `app/(auth)/` are unreachable while false
+- `sync-queue.ts` — `enqueue`/`flush`/`startAutoSync` become no-ops and the stored queue is cleared on start
+- `auth-context.tsx` — profile (name only) is read/written locally under `auth_user_v1`; `deleteAccount("")` just wipes local data
+- `profil.tsx` — hides logout, sync banner and the phone field; "Hisobni o'chirish" becomes "Ma'lumotlarni tozalash"
+- Privacy policy is the in-app screen `app/privacy.tsx` (the backend also serves one at `/privacy` for when the server returns)
+
+### Offline-first data flow (active only when SERVER_ENABLED)
 
 Every user mutation is written to AsyncStorage first, then queued for the backend:
 

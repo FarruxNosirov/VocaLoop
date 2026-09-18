@@ -5,6 +5,7 @@ import "react-native-reanimated";
 
 import { AuthProvider, useAuth } from "@/context/auth-context";
 import { ThemeProvider, useTheme } from "@/context/theme-context";
+import { SERVER_ENABLED } from "@/services/config";
 
 function RootNavigator() {
   const { user, isLoading } = useAuth();
@@ -13,7 +14,8 @@ function RootNavigator() {
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) return;
+    // Serversiz rejimda login talab qilinmaydi — ilova to'g'ridan ochiladi
+    if (!SERVER_ENABLED || isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
 
@@ -34,6 +36,7 @@ function RootNavigator() {
         <Stack.Screen name="quiz/index" options={{ headerShown: false }} />
         <Stack.Screen name="quiz/result" options={{ headerShown: false }} />
         <Stack.Screen name="quiz/irregular" options={{ headerShown: false }} />
+        <Stack.Screen name="privacy" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       </Stack>
       <StatusBar style={isDark ? "light" : "dark"} />
